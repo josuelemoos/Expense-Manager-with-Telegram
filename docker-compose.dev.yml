@@ -1,0 +1,6 @@
+services:
+  backend:
+    environment:
+      DATABASE_ECHO: "true"
+    volumes:
+      - ./backend:/app
