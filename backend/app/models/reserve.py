@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Numeric, String, Text, text
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Numeric, String, Text, func, text
 from sqlmodel import Field, SQLModel
 
 
@@ -32,7 +32,7 @@ class Reserve(SQLModel, table=True):
     description: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     created_at: datetime | None = Field(
         default=None,
-        sa_column=Column(DateTime, nullable=False, server_default=text("now()")),
+        sa_column=Column(DateTime, nullable=False, server_default=func.now()),
     )
     is_active: bool = Field(
         default=True,

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, String, text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, String, func, text
 from sqlmodel import Field, SQLModel
 
 
@@ -20,7 +20,7 @@ class User(SQLModel, table=True):
         sa_column=Column(
             DateTime,
             nullable=False,
-            server_default=text("now()"),
+            server_default=func.now(),
         ),
     )
     is_active: bool = Field(

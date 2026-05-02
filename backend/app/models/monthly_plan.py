@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Numeric, Text, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Numeric, Text, UniqueConstraint, func
 from sqlmodel import Field, SQLModel
 
 
@@ -30,9 +30,9 @@ class MonthlyPlan(SQLModel, table=True):
     notes: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     created_at: datetime | None = Field(
         default=None,
-        sa_column=Column(DateTime, nullable=False, server_default=text("now()")),
+        sa_column=Column(DateTime, nullable=False, server_default=func.now()),
     )
     updated_at: datetime | None = Field(
         default=None,
-        sa_column=Column(DateTime, nullable=False, server_default=text("now()")),
+        sa_column=Column(DateTime, nullable=False, server_default=func.now()),
     )

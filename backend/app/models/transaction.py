@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Numeric, String, Text, text
+from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Numeric, String, Text, func, text
 from sqlmodel import Field, SQLModel
 
 
@@ -49,5 +49,5 @@ class Transaction(SQLModel, table=True):
     )
     created_at: datetime | None = Field(
         default=None,
-        sa_column=Column(DateTime, nullable=False, server_default=text("now()")),
+        sa_column=Column(DateTime, nullable=False, server_default=func.now()),
     )
