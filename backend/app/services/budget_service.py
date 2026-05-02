@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.models import Budget, Category, Transaction
-from app.schemas.budget import BudgetProgress
+from app.schemas.budget import BudgetProgress, BudgetRead
 from app.services.category_service import get_category
 from app.services.exceptions import NotFoundError, ValidationError
 from app.utils.date_helpers import now_in_timezone
@@ -42,6 +42,21 @@ def get_budget(
             Budget.year == year,
         ),
     ).first()
+
+
+def list_budgets(
+    session: Session,
+    user_id: int,
+    month: int | None = None,
+    year: int | None = None,
+) -> list[BudgetRead]:
+    statement = select(Budget).where(Budget.user_id == user_id)
+    if month is not None:
+        statement = statement.where(Budget.month == month)
+    if year is not None:
+        statement = statement.where(Budget.year == year)
+    budgets = session.exec(statement.order_by(Budget.year.desc(), Budget.month.desc())).all()
+    return [BudgetRead.model_validate(budget) for budget in budgets]
 
 
 def upsert_budget(

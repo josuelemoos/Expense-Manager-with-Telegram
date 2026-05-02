@@ -1,5 +1,5 @@
 from app.schemas.account import AccountBalanceItem, AccountBalanceSummary, AccountRead
-from app.schemas.budget import BudgetProgress
+from app.schemas.budget import BudgetProgress, BudgetRead, BudgetUpsert
 from app.schemas.category import CategoryRead
 from app.schemas.plan import (
     AllocationProgress,
@@ -21,6 +21,8 @@ __all__ = [
     "AllocationRuleRead",
     "AllocationRuleUpsert",
     "BudgetProgress",
+    "BudgetRead",
+    "BudgetUpsert",
     "CategoryRead",
     "CategorySpending",
     "DashboardSummary",

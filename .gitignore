@@ -4,6 +4,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+*.tsbuildinfo
 node_modules/
 .next/
 postgres_data/
