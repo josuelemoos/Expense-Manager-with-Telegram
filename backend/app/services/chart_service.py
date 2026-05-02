@@ -2,6 +2,9 @@ from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
+import os
+
+os.environ.setdefault("MPLCONFIGDIR", "/tmp")
 
 import matplotlib
 

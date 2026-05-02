@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.routers import accounts, categories, reserves, summary, transactions
+from app.routers import accounts, categories, reserves, summary, telegram, transactions
 
 
 app = FastAPI(
@@ -16,6 +16,7 @@ app.include_router(categories.router, prefix=API_PREFIX)
 app.include_router(transactions.router, prefix=API_PREFIX)
 app.include_router(reserves.router, prefix=API_PREFIX)
 app.include_router(summary.router, prefix=API_PREFIX)
+app.include_router(telegram.router, prefix=API_PREFIX)
 
 
 @app.get("/health", tags=["health"])
