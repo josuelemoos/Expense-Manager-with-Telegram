@@ -41,6 +41,14 @@ class Settings(BaseSettings):
         default=Decimal("3000.00"),
         validation_alias="DEFAULT_MONTHLY_INCOME",
     )
+    enable_telegram_reset: bool = Field(
+        default=False,
+        validation_alias="ENABLE_TELEGRAM_RESET",
+    )
+    reset_max_balance: Decimal = Field(
+        default=Decimal("1000000.00"),
+        validation_alias="RESET_MAX_BALANCE",
+    )
     timezone: str = Field(default="America/Fortaleza", validation_alias="TIMEZONE")
 
     model_config = SettingsConfigDict(

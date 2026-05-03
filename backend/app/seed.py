@@ -32,13 +32,18 @@ def get_or_create_user(session: Session) -> User:
     return user
 
 
-def seed_accounts(session: Session, user_id: int) -> None:
+def seed_accounts(
+    session: Session,
+    user_id: int,
+    default_initial_balance: Decimal | None = None,
+) -> None:
+    default_initial_balance = money(default_initial_balance or "0")
     accounts = [
         {
             "name": "Conta Principal",
             "type": "bank",
-            "initial_balance": money("0"),
-            "current_balance": money("0"),
+            "initial_balance": default_initial_balance,
+            "current_balance": default_initial_balance,
             "is_default": True,
         },
         {

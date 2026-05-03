@@ -81,6 +81,18 @@ def test_parse_expense_effect() -> None:
     assert parsed.date is not None
 
 
+def test_parse_reset_request() -> None:
+    parsed = assert_parsed("/reset 5000")
+    assert parsed.intent == "request_reset"
+    assert parsed.amount == 5000
+
+
+def test_parse_reset_confirm() -> None:
+    parsed = assert_parsed("/confirmar_reset 123456")
+    assert parsed.intent == "confirm_reset"
+    assert parsed.confirmation_code == "123456"
+
+
 def test_parse_set_income() -> None:
     parsed = assert_parsed("definir renda 3000")
     assert parsed.intent == "set_income"

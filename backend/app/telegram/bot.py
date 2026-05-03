@@ -5,9 +5,11 @@ from app.telegram.commands import (
     balance_command,
     categories_command,
     chart_command,
+    confirm_reset_command,
     effect_command,
     help_command,
     planning_command,
+    reset_command,
     reserves_command,
     start_command,
     statement_command,
@@ -35,6 +37,8 @@ def build_application() -> Application:
     application.add_handler(CommandHandler("grafico", chart_command))
     application.add_handler(CommandHandler("planejamento", planning_command))
     application.add_handler(CommandHandler("efeito", effect_command))
+    application.add_handler(CommandHandler("reset", reset_command))
+    application.add_handler(CommandHandler("confirmar_reset", confirm_reset_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
     return application
 

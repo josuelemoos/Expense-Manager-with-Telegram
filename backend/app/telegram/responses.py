@@ -7,6 +7,7 @@ from app.schemas.account import AccountBalanceSummary
 from app.schemas.effect import ExpenseEffectSimulation
 from app.schemas.plan import MonthlyPlanRead, PlanProgress
 from app.schemas.reserve import ReserveDepositRead
+from app.schemas.reset import PendingReset, ResetResult
 from app.schemas.summary import MonthlySummary
 from app.schemas.transaction import TransactionResult
 from app.telegram.parser import ParseError
@@ -265,6 +266,54 @@ def format_expense_effect(result: ExpenseEffectSimulation) -> str:
     return "\n".join(lines)
 
 
+def format_reset_request(pending: PendingReset) -> str:
+    return "\n".join(
+        [
+            "\u26a0\ufe0f Reset administrativo solicitado",
+            "",
+            "Isso vai apagar seus dados financeiros e recriar o estado inicial.",
+            "",
+            "Serao apagados:",
+            "- transacoes",
+            "- reservas",
+            "- orcamentos",
+            "- plano mensal",
+            "- regras de alocacao",
+            "- contas e saldos",
+            "",
+            f"Saldo inicial apos reset: {format_brl(pending.initial_balance)}",
+            "",
+            "Para confirmar, envie:",
+            f"/confirmar_reset {pending.confirmation_code}",
+            "",
+            "Se nao quiser resetar, ignore esta mensagem.",
+        ],
+    )
+
+
+def format_reset_success(result: ResetResult) -> str:
+    return "\n".join(
+        [
+            "\u2705 Reset concluido",
+            "",
+            "O banco financeiro foi recriado para o usuario padrao.",
+            f"Saldo inicial da conta padrao: {format_brl(result.initial_balance)}",
+            "",
+            "Voce pode comecar de novo enviando uma despesa, receita ou /saldo.",
+        ],
+    )
+
+
+def format_reset_refused(reason: str) -> str:
+    return "\n".join(
+        [
+            "Nao executei o reset.",
+            "",
+            f"Motivo: {reason}",
+        ],
+    )
+
+
 def start_message() -> str:
     return (
         "Bem-vindo ao FinTrack.\n\n"
@@ -273,6 +322,7 @@ def start_message() -> str:
         "- recebi 1500\n"
         "- guardei 100 reserva\n"
         "- /efeito pizza de 42 reais hoje\n"
+        "- /reset 5000\n"
         "- /saldo\n"
         "- /resumo\n"
         "- /planejamento"
@@ -282,7 +332,7 @@ def start_message() -> str:
 def help_message() -> str:
     return (
         "Comandos: /saldo, /resumo, /reservas, /categorias, /extrato, "
-        "/grafico, /grafico barras, /planejamento, /efeito.\n\n"
+        "/grafico, /grafico barras, /planejamento, /efeito, /reset.\n\n"
         "Voce tambem pode escrever: mercado 45, recebi 1500, "
         "guardei 100 reserva, definir renda 3000, comprometido 1800, "
         "/efeito pizza de 42 reais hoje."

@@ -396,6 +396,34 @@ Adicionar campo `is_default BOOLEAN DEFAULT FALSE` na tabela `accounts`.
    - `/efeito uber 35`
    - `/efeito cinema 60 dia 15`
 
+### RN-13: Reset administrativo pelo Telegram
+1. O comando `/reset` deve ser tratado como operação administrativa destrutiva.
+2. O comando nunca deve executar imediatamente em uma única mensagem. O fluxo obrigatório é:
+   - usuário envia `/reset` ou `/reset 5000`;
+   - bot responde com resumo do que será apagado e pede confirmação;
+   - usuário confirma com `/confirmar_reset <codigo>`;
+   - somente então o reset é executado.
+3. `/reset` limpa 100% dos dados financeiros do usuário padrão e recria o estado inicial do seed:
+   - transações;
+   - reservas;
+   - budgets;
+   - plano mensal;
+   - regras de alocação;
+   - contas e saldos;
+   - categorias padrão.
+4. `/reset 5000` faz o mesmo reset, mas define a conta padrão com `initial_balance = 5000.00` e `current_balance = 5000.00`.
+5. O comando deve ser permitido somente para `DEFAULT_USER_TELEGRAM_CHAT_ID`.
+6. O comando deve registrar log estruturado com `chat_id`, data/hora, modo (`full` ou `with_balance`) e valor informado, sem registrar tokens ou segredos.
+7. A operação deve rodar dentro de uma transação atômica. Se qualquer etapa falhar, nenhum dado deve ficar parcialmente resetado.
+8. Valores aceitos para `/reset <valor>`:
+   - valor decimal positivo;
+   - máximo configurável por `RESET_MAX_BALANCE`, padrão `1000000.00`;
+   - zero é permitido apenas se enviado explicitamente como `/reset 0`.
+9. O reset deve ser recusado em ambiente de produção, a menos que `ENABLE_TELEGRAM_RESET=true`.
+10. A resposta final deve deixar claro que a ação foi executada e qual saldo inicial ficou configurado.
+
+Observação de produto: esta feature é útil para ambiente pessoal, testes e recomeços de organização financeira, mas é perigosa. Não implementar como atalho sem confirmação. Para ajustes pontuais de saldo, preferir uma feature separada de "ajuste de saldo" que cria uma transação auditável, em vez de apagar histórico.
+
 ---
 
 ## 6. API — ENDPOINTS
@@ -522,6 +550,9 @@ mensagem recebida
 "gráfico do mês"          → chart_pie
 "/planejamento"           → query_plan
 "/efeito pizza de 42 reais hoje" → simulate_expense_effect, 42.00, Alimentação, description=Pizza, date=today
+"/reset"                  → request_reset, mode=full
+"/reset 5000"             → request_reset, mode=with_balance, amount=5000.00
+"/confirmar_reset 123456" → confirm_reset, code=123456
 "definir renda 3000"      → set_income, 3000.00
 "comprometido 1800"       → set_committed, 1800.00
 ```
@@ -532,12 +563,14 @@ class ParsedMessage:
     intent: Literal["expense", "income", "reserve_deposit",
                     "query_balance", "query_summary", "query_reserves",
                     "query_plan", "chart_pie", "chart_bars",
-                    "simulate_expense_effect", "set_income",
-                    "set_committed", "unknown"]
+                    "simulate_expense_effect", "request_reset",
+                    "confirm_reset", "set_income", "set_committed",
+                    "unknown"]
     amount: Optional[float]
     description: Optional[str]
     suggested_category: Optional[str]
     date: Optional[date]
+    confirmation_code: Optional[str]
     reserve_name: Optional[str]
     raw_text: str
     confidence: float  # 0.0 a 1.0
@@ -578,6 +611,7 @@ Descrição sem categoria conhecida:
 /grafico barras — Evolução dos últimos 6 meses (envia imagem)
 /planejamento   — Plano mensal vs. realidade
 /efeito         — Simula o impacto de uma despesa sem registrar transação
+/reset          — Solicita reset administrativo com confirmação obrigatória
 ```
 
 ### 8.2 Formato das respostas
@@ -698,6 +732,45 @@ R$ 380,00 → R$ 422,00 / R$ 500,00 (84%)
 ⚠️ Atenção: isso deixa Alimentação acima de 80% do orçamento.
 
 Nada foi registrado. Para lançar de verdade, envie: pizza 42
+```
+
+**Solicitar reset (/reset 5000):**
+```
+⚠️ Reset administrativo solicitado
+
+Isso vai apagar seus dados financeiros e recriar o estado inicial.
+
+Serão apagados:
+- transações
+- reservas
+- orçamentos
+- plano mensal
+- regras de alocação
+- contas e saldos
+
+Saldo inicial após reset: R$ 5.000,00
+
+Para confirmar, envie:
+/confirmar_reset 123456
+
+Se não quiser resetar, ignore esta mensagem.
+```
+
+**Reset confirmado:**
+```
+✅ Reset concluído
+
+O banco financeiro foi recriado para o usuário padrão.
+Saldo inicial da conta padrão: R$ 5.000,00
+
+Você pode começar de novo enviando uma despesa, receita ou /saldo.
+```
+
+**Reset recusado por segurança:**
+```
+Não executei o reset.
+
+Motivo: confirmação inválida ou reset desativado neste ambiente.
 ```
 
 ### 8.3 Segurança do bot
@@ -841,6 +914,7 @@ Siga esta ordem estritamente. Não avance para a próxima fase sem a anterior fu
 - [ ] Implementar `telegram/commands.py` (/start, /saldo, /resumo, /reservas, /planejamento)
 - [ ] Implementar handlers de gráfico (/grafico, /grafico barras) enviando imagem PNG
 - [ ] Implementar handler de simulação de despesa (/efeito)
+- [ ] Implementar fluxo administrativo de reset (/reset, /confirmar_reset) com confirmação obrigatória
 - [ ] Implementar handlers de atualização de plano (definir renda, comprometido)
 - [ ] Implementar `telegram/bot.py` com handler de mensagens livres
 - [ ] Implementar `telegram/responses.py` com os formatos da seção 8.2
@@ -923,6 +997,8 @@ test_parse_query_balance()            # "quanto tenho?" → query_balance
 test_parse_chart_pie()                # "/grafico" → chart_pie
 test_parse_chart_bars()               # "/grafico barras" → chart_bars
 test_parse_expense_effect()           # "/efeito pizza de 42 reais hoje" → simulate_expense_effect, 42.0
+test_parse_reset_request()            # "/reset 5000" → request_reset, 5000.0
+test_parse_reset_confirm()            # "/confirmar_reset 123456" → confirm_reset, code=123456
 test_parse_set_income()               # "definir renda 3000" → set_income, 3000.0
 test_parse_set_committed()            # "comprometido 1800" → set_committed, 1800.0
 ```
@@ -940,6 +1016,9 @@ test_plan_fails_if_committed_exceeds_income()   # Erro se comprometido > renda
 test_allocation_percentages_sum_to_100()        # Validação de soma dos percentuais
 test_simulate_expense_effect_does_not_persist() # /efeito não cria transação
 test_simulate_expense_effect_updates_projection() # Projeção considera renda, plano e orçamento
+test_reset_requires_confirmation()              # /reset sozinho não apaga dados
+test_reset_recreates_seed_with_balance()        # /reset 5000 recria estado inicial com saldo 5000 após confirmação
+test_reset_rolls_back_on_failure()              # Falha durante reset não deixa dados parciais
 test_chart_pie_returns_png_bytes()              # chart_service retorna bytes válidos
 test_chart_bars_returns_png_bytes()             # idem para barras
 ```
@@ -974,6 +1053,8 @@ Explicitamente fora do escopo desta versão:
 - [ ] O comando /grafico barras envia gráfico de evolução mensal
 - [ ] O comando /planejamento mostra renda, comprometido, livre e distribuição
 - [ ] O comando /efeito mostra impacto simulado na renda, saldo mensal e plano sem registrar transação
+- [ ] O comando /reset nunca apaga dados sem confirmação explícita
+- [ ] O comando /reset 5000 recria o estado inicial com saldo padrão de R$ 5.000,00 após confirmação
 - [ ] "definir renda 3000" atualiza o plano e responde com resumo
 - [ ] "comprometido 1800" atualiza o comprometido e responde com resumo
 - [ ] A soma dos percentuais de alocação não pode ultrapassar 100%

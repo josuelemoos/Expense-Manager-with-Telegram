@@ -17,6 +17,7 @@ from app.services.exceptions import ServiceError, ValidationError
 from app.services.effect_service import simulate_expense_effect
 from app.services.plan_service import get_monthly_plan_read, get_plan_progress, upsert_monthly_plan
 from app.services.reserve_service import deposit_to_reserve, list_reserves
+from app.services.reset_service import reset_financial_data
 from app.services.summary_service import get_balance_summary, get_monthly_summary
 from app.services.transaction_service import (
     create_expense,
@@ -34,12 +35,16 @@ from app.telegram.responses import (
     format_plan_update,
     format_reserve_deposit,
     format_reserves,
+    format_reset_refused,
+    format_reset_request,
+    format_reset_success,
     format_service_error,
     format_transaction_result,
     format_transactions,
     help_message,
     start_message,
 )
+from app.telegram.reset_state import create_pending_reset, consume_pending_reset
 from app.utils.date_helpers import now_in_timezone
 
 
@@ -181,6 +186,46 @@ async def effect_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
 
 
+async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if await _reject_if_unauthorized(update):
+        return
+    text = update.effective_message.text if update.effective_message else ""
+    parsed = parse_message(text or "")
+    if isinstance(parsed, ParseError):
+        await _reply_text(update, format_parse_error(parsed))
+        return
+    try:
+        await handle_parsed_message(update, parsed)
+    except ServiceError as error:
+        await _reply_text(update, format_service_error(error.detail))
+    except Exception:
+        logger.exception("Erro inesperado ao processar comando /reset")
+        await _reply_text(
+            update,
+            "Nao consegui preparar o reset agora. Tente novamente em instantes.",
+        )
+
+
+async def confirm_reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if await _reject_if_unauthorized(update):
+        return
+    text = update.effective_message.text if update.effective_message else ""
+    parsed = parse_message(text or "")
+    if isinstance(parsed, ParseError):
+        await _reply_text(update, format_parse_error(parsed))
+        return
+    try:
+        await handle_parsed_message(update, parsed)
+    except ServiceError as error:
+        await _reply_text(update, format_service_error(error.detail))
+    except Exception:
+        logger.exception("Erro inesperado ao confirmar reset")
+        await _reply_text(
+            update,
+            "Nao consegui confirmar o reset agora. Tente novamente em instantes.",
+        )
+
+
 async def chart_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if await _reject_if_unauthorized(update):
         return
@@ -220,8 +265,86 @@ def _current_plan_data(
     )
 
 
+def _reset_refusal_reason(update: Update) -> str | None:
+    chat_id = _chat_id(update)
+    if not settings.enable_telegram_reset:
+        return "reset desativado neste ambiente."
+    if settings.default_user_telegram_chat_id is None:
+        return "DEFAULT_USER_TELEGRAM_CHAT_ID precisa estar configurado para usar /reset."
+    if chat_id != settings.default_user_telegram_chat_id:
+        return "este chat nao tem permissao para executar reset."
+    return None
+
+
+async def _handle_reset_request(update: Update, parsed: ParsedMessage, user_id: int) -> None:
+    reason = _reset_refusal_reason(update)
+    if reason:
+        await _reply_text(update, format_reset_refused(reason))
+        return
+
+    chat_id = _chat_id(update)
+    if chat_id is None:
+        await _reply_text(update, format_reset_refused("nao consegui identificar o chat."))
+        return
+
+    pending = create_pending_reset(
+        chat_id=chat_id,
+        user_id=user_id,
+        initial_balance=parsed.amount,
+    )
+    logger.warning(
+        "telegram_reset_requested chat_id=%s mode=%s initial_balance=%s",
+        chat_id,
+        "with_balance" if parsed.amount is not None else "full",
+        pending.initial_balance,
+    )
+    await _reply_text(update, format_reset_request(pending))
+
+
+async def _handle_reset_confirmation(update: Update, parsed: ParsedMessage) -> None:
+    reason = _reset_refusal_reason(update)
+    if reason:
+        await _reply_text(update, format_reset_refused(reason))
+        return
+
+    chat_id = _chat_id(update)
+    if chat_id is None:
+        await _reply_text(update, format_reset_refused("nao consegui identificar o chat."))
+        return
+
+    pending = consume_pending_reset(chat_id, parsed.confirmation_code or "")
+    if not pending:
+        await _reply_text(
+            update,
+            format_reset_refused("confirmacao invalida, expirada ou inexistente."),
+        )
+        return
+
+    with Session(engine) as session:
+        result = reset_financial_data(
+            session,
+            pending.user_id,
+            initial_balance=pending.initial_balance,
+        )
+
+    logger.warning(
+        "telegram_reset_executed chat_id=%s mode=%s initial_balance=%s",
+        chat_id,
+        "with_balance" if pending.initial_balance > 0 else "full",
+        pending.initial_balance,
+    )
+    await _reply_text(update, format_reset_success(result))
+
+
 async def handle_parsed_message(update: Update, parsed: ParsedMessage) -> None:
     user_id = _default_user_id()
+    if parsed.intent == "request_reset":
+        await _handle_reset_request(update, parsed, user_id)
+        return
+    if parsed.intent == "confirm_reset":
+        await _handle_reset_confirmation(update, parsed)
+        return
+
     with Session(engine) as session:
         if parsed.intent == "query_balance":
             await _reply_text(update, format_balance(get_balance_summary(session, user_id)))

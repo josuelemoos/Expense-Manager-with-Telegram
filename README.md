@@ -2,6 +2,8 @@
 
 Sistema pessoal de gestao financeira com FastAPI, PostgreSQL, SQLModel e Alembic.
 
+Documentacao completa de funcoes, comandos e uso: [DOCUMENTACAO.md](DOCUMENTACAO.md).
+
 ## Fase 1
 
 Esta fase cria a base do projeto:

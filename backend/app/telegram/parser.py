@@ -17,6 +17,8 @@ Intent = Literal[
     "chart_pie",
     "chart_bars",
     "simulate_expense_effect",
+    "request_reset",
+    "confirm_reset",
     "set_income",
     "set_committed",
     "unknown",
@@ -32,6 +34,7 @@ class ParsedMessage:
     description: str | None = None
     suggested_category: str | None = None
     date: PyDate | None = None
+    confirmation_code: str | None = None
     reserve_name: str | None = None
     raw_text: str = ""
     confidence: float = 0.0
@@ -183,6 +186,42 @@ def parse_message(text: str) -> ParsedMessage | ParseError:
         return ParsedMessage("chart_pie", raw_text=raw, confidence=1.0)
 
     amount = _extract_amount(normalized)
+    if normalized == "/reset" or normalized.startswith("/reset "):
+        reset_match = re.fullmatch(
+            r"/reset(?:\s+(\d+(?:[.,]\d{1,2})?))?",
+            normalized,
+        )
+        if not reset_match:
+            return ParseError(
+                "no_context",
+                "Nao consegui identificar o formato do reset.",
+                "Tente: /reset ou /reset 5000",
+            )
+        reset_amount = (
+            Decimal(reset_match.group(1).replace(",", ".")).quantize(Decimal("0.01"))
+            if reset_match.group(1)
+            else None
+        )
+        return ParsedMessage(
+            "request_reset",
+            amount=reset_amount,
+            raw_text=raw,
+            confidence=1.0,
+        )
+    if normalized.startswith("/confirmar_reset"):
+        code_match = re.search(r"^/confirmar_reset\s+(\d{6})$", normalized)
+        if not code_match:
+            return ParseError(
+                "no_context",
+                "Nao consegui identificar o codigo de confirmacao.",
+                "Tente: /confirmar_reset 123456",
+            )
+        return ParsedMessage(
+            "confirm_reset",
+            confirmation_code=code_match.group(1),
+            raw_text=raw,
+            confidence=1.0,
+        )
     if normalized.startswith("/efeito") or normalized.startswith("efeito "):
         if amount is None:
             return ParseError(
