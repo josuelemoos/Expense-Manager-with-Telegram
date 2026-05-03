@@ -368,6 +368,7 @@ Adicionar campo `is_default BOOLEAN DEFAULT FALSE` na tabela `accounts`.
    - `barras`: receita vs. despesa dos últimos 6 meses
 3. A imagem é enviada via `bot.send_photo()` com `BytesIO` como buffer
 4. Sempre incluir título e legenda na imagem
+
 5. Usar paleta de cores consistente com o frontend
 
 ### RN-11: Atualizar plano pelo Telegram
@@ -375,6 +376,25 @@ Adicionar campo `is_default BOOLEAN DEFAULT FALSE` na tabela `accounts`.
 2. `comprometido 1800` → atualiza `committed_expenses` do mês atual
 3. Se o plano do mês não existir, criar automaticamente
 4. Sempre responder com o resumo atualizado do plano
+
+### RN-12: Simular efeito de despesa
+1. O comando `/efeito` simula o impacto de uma despesa hipotética sem salvar transação no banco.
+2. O parser deve extrair descrição, valor e data opcional da mensagem.
+3. Se a data não for informada, usar a data atual no fuso `America/Fortaleza`.
+4. A simulação deve calcular:
+   - saldo atual após a despesa hipotética;
+   - saldo mensal projetado após a despesa;
+   - impacto no plano mensal (`free_amount` restante);
+   - impacto na fatia de alocação relacionada à categoria sugerida;
+   - impacto no orçamento da categoria, quando houver budget configurado.
+5. A categoria deve ser sugerida usando os mesmos aliases do parser de despesas.
+6. A resposta deve deixar claro que é uma simulação e que nada foi registrado.
+7. Se o valor passar do saldo disponível, orçamento ou fatia do plano, retornar alerta amigável.
+8. Exemplos de entrada:
+   - `/efeito pizza de 42 reais hoje`
+   - `/efeito mercado 120 amanhã`
+   - `/efeito uber 35`
+   - `/efeito cinema 60 dia 15`
 
 ---
 
@@ -501,6 +521,7 @@ mensagem recebida
 "/grafico barras"         → chart_bars
 "gráfico do mês"          → chart_pie
 "/planejamento"           → query_plan
+"/efeito pizza de 42 reais hoje" → simulate_expense_effect, 42.00, Alimentação, description=Pizza, date=today
 "definir renda 3000"      → set_income, 3000.00
 "comprometido 1800"       → set_committed, 1800.00
 ```
@@ -511,10 +532,12 @@ class ParsedMessage:
     intent: Literal["expense", "income", "reserve_deposit",
                     "query_balance", "query_summary", "query_reserves",
                     "query_plan", "chart_pie", "chart_bars",
-                    "set_income", "set_committed", "unknown"]
+                    "simulate_expense_effect", "set_income",
+                    "set_committed", "unknown"]
     amount: Optional[float]
     description: Optional[str]
     suggested_category: Optional[str]
+    date: Optional[date]
     reserve_name: Optional[str]
     raw_text: str
     confidence: float  # 0.0 a 1.0
@@ -554,6 +577,7 @@ Descrição sem categoria conhecida:
 /grafico        — Gráfico de pizza dos gastos do mês (envia imagem)
 /grafico barras — Evolução dos últimos 6 meses (envia imagem)
 /planejamento   — Plano mensal vs. realidade
+/efeito         — Simula o impacto de uma despesa sem registrar transação
 ```
 
 ### 8.2 Formato das respostas
@@ -653,6 +677,27 @@ Real vs. planejado este mês:
 💰 Renda esperada:  R$ 3.000,00
 🔒 Comprometido:    R$ 1.800,00
 ✅ Livre:           R$ 1.200,00
+```
+
+**Efeito de despesa (/efeito):**
+```
+🔎 Simulação de despesa
+
+💸 Pizza: R$ 42,00
+📅 Hoje
+🏷️ Categoria sugerida: Alimentação
+
+Se você gastar isso agora:
+💰 Saldo atual:       R$ 1.240,00 → R$ 1.198,00
+📈 Saldo do mês:      R$ 1.040,00 → R$ 998,00
+✅ Livre no plano:    R$ 360,00 → R$ 318,00
+
+📊 Alimentação este mês:
+R$ 380,00 → R$ 422,00 / R$ 500,00 (84%)
+
+⚠️ Atenção: isso deixa Alimentação acima de 80% do orçamento.
+
+Nada foi registrado. Para lançar de verdade, envie: pizza 42
 ```
 
 ### 8.3 Segurança do bot
@@ -795,6 +840,7 @@ Siga esta ordem estritamente. Não avance para a próxima fase sem a anterior fu
 - [ ] Escrever testes em `tests/test_parser.py`
 - [ ] Implementar `telegram/commands.py` (/start, /saldo, /resumo, /reservas, /planejamento)
 - [ ] Implementar handlers de gráfico (/grafico, /grafico barras) enviando imagem PNG
+- [ ] Implementar handler de simulação de despesa (/efeito)
 - [ ] Implementar handlers de atualização de plano (definir renda, comprometido)
 - [ ] Implementar `telegram/bot.py` com handler de mensagens livres
 - [ ] Implementar `telegram/responses.py` com os formatos da seção 8.2
@@ -876,6 +922,7 @@ test_parse_only_number_ambiguous()    # "45" → ambiguous
 test_parse_query_balance()            # "quanto tenho?" → query_balance
 test_parse_chart_pie()                # "/grafico" → chart_pie
 test_parse_chart_bars()               # "/grafico barras" → chart_bars
+test_parse_expense_effect()           # "/efeito pizza de 42 reais hoje" → simulate_expense_effect, 42.0
 test_parse_set_income()               # "definir renda 3000" → set_income, 3000.0
 test_parse_set_committed()            # "comprometido 1800" → set_committed, 1800.0
 ```
@@ -891,6 +938,8 @@ test_budget_alert_at_80_percent()               # Alerta gerado ao atingir 80%
 test_plan_free_amount_calculated_correctly()    # free = expected - committed
 test_plan_fails_if_committed_exceeds_income()   # Erro se comprometido > renda
 test_allocation_percentages_sum_to_100()        # Validação de soma dos percentuais
+test_simulate_expense_effect_does_not_persist() # /efeito não cria transação
+test_simulate_expense_effect_updates_projection() # Projeção considera renda, plano e orçamento
 test_chart_pie_returns_png_bytes()              # chart_service retorna bytes válidos
 test_chart_bars_returns_png_bytes()             # idem para barras
 ```
@@ -924,6 +973,7 @@ Explicitamente fora do escopo desta versão:
 - [ ] O comando /grafico envia uma imagem PNG no chat
 - [ ] O comando /grafico barras envia gráfico de evolução mensal
 - [ ] O comando /planejamento mostra renda, comprometido, livre e distribuição
+- [ ] O comando /efeito mostra impacto simulado na renda, saldo mensal e plano sem registrar transação
 - [ ] "definir renda 3000" atualiza o plano e responde com resumo
 - [ ] "comprometido 1800" atualiza o comprometido e responde com resumo
 - [ ] A soma dos percentuais de alocação não pode ultrapassar 100%

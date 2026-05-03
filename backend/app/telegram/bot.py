@@ -5,6 +5,7 @@ from app.telegram.commands import (
     balance_command,
     categories_command,
     chart_command,
+    effect_command,
     help_command,
     planning_command,
     reserves_command,
@@ -33,6 +34,7 @@ def build_application() -> Application:
     application.add_handler(CommandHandler("extrato", statement_command))
     application.add_handler(CommandHandler("grafico", chart_command))
     application.add_handler(CommandHandler("planejamento", planning_command))
+    application.add_handler(CommandHandler("efeito", effect_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
     return application
 

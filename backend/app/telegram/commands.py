@@ -14,6 +14,7 @@ from app.schemas.transaction import TransactionCreate
 from app.services.category_service import find_category_by_name, list_categories
 from app.services.chart_service import generate_bars_chart, generate_pie_chart
 from app.services.exceptions import ServiceError, ValidationError
+from app.services.effect_service import simulate_expense_effect
 from app.services.plan_service import get_monthly_plan_read, get_plan_progress, upsert_monthly_plan
 from app.services.reserve_service import deposit_to_reserve, list_reserves
 from app.services.summary_service import get_balance_summary, get_monthly_summary
@@ -26,6 +27,7 @@ from app.telegram.parser import ParseError, ParsedMessage, parse_message
 from app.telegram.responses import (
     format_balance,
     format_categories,
+    format_expense_effect,
     format_monthly_summary,
     format_parse_error,
     format_plan,
@@ -159,6 +161,26 @@ async def planning_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await _reply_text(update, format_plan(get_plan_progress(session, _default_user_id())))
 
 
+async def effect_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if await _reject_if_unauthorized(update):
+        return
+    text = update.effective_message.text if update.effective_message else ""
+    parsed = parse_message(text or "")
+    if isinstance(parsed, ParseError):
+        await _reply_text(update, format_parse_error(parsed))
+        return
+    try:
+        await handle_parsed_message(update, parsed)
+    except ServiceError as error:
+        await _reply_text(update, format_service_error(error.detail))
+    except Exception:
+        logger.exception("Erro inesperado ao processar comando /efeito")
+        await _reply_text(
+            update,
+            "Nao consegui simular agora. Tente novamente em instantes.",
+        )
+
+
 async def chart_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if await _reject_if_unauthorized(update):
         return
@@ -237,6 +259,18 @@ async def handle_parsed_message(update: Update, parsed: ParsedMessage) -> None:
                 _current_plan_data(session, user_id, committed_expenses=parsed.amount),
             )
             await _reply_text(update, format_plan_update(plan))
+            return
+        if parsed.intent == "simulate_expense_effect" and parsed.amount is not None:
+            category_id = _category_id_for(session, user_id, parsed.suggested_category, "expense")
+            result = simulate_expense_effect(
+                session,
+                user_id,
+                amount=parsed.amount,
+                description=parsed.description or parsed.raw_text,
+                category_id=category_id,
+                effect_date=parsed.date,
+            )
+            await _reply_text(update, format_expense_effect(result))
             return
         if parsed.intent == "reserve_deposit" and parsed.amount is not None:
             reserve = _reserve_for_name(session, user_id, parsed.reserve_name)

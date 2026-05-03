@@ -72,6 +72,15 @@ def test_parse_chart_bars() -> None:
     assert parsed.intent == "chart_bars"
 
 
+def test_parse_expense_effect() -> None:
+    parsed = assert_parsed("/efeito pizza de 42 reais hoje")
+    assert parsed.intent == "simulate_expense_effect"
+    assert parsed.amount == 42
+    assert parsed.description == "Pizza"
+    assert parsed.suggested_category == "Alimenta\u00e7\u00e3o"
+    assert parsed.date is not None
+
+
 def test_parse_set_income() -> None:
     parsed = assert_parsed("definir renda 3000")
     assert parsed.intent == "set_income"

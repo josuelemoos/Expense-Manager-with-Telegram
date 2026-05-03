@@ -1,8 +1,10 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from app.models import Reserve
 from app.models import Category, Transaction
 from app.schemas.account import AccountBalanceSummary
+from app.schemas.effect import ExpenseEffectSimulation
 from app.schemas.plan import MonthlyPlanRead, PlanProgress
 from app.schemas.reserve import ReserveDepositRead
 from app.schemas.summary import MonthlySummary
@@ -192,6 +194,77 @@ def format_plan_update(plan: MonthlyPlanRead) -> str:
     )
 
 
+def _date_label(value) -> str:
+    from app.utils.date_helpers import now_in_timezone
+
+    today = now_in_timezone().date()
+    if value == today:
+        return "Hoje"
+    if value == today + timedelta(days=1):
+        return "Amanha"
+    return value.strftime("%d/%m/%Y")
+
+
+def format_expense_effect(result: ExpenseEffectSimulation) -> str:
+    lines = [
+        "\U0001f50e Simulacao de despesa",
+        "",
+        f"\U0001f4b8 {result.description}: {format_brl(result.amount)}",
+        f"\U0001f4c5 {_date_label(result.date)}",
+        f"\U0001f3f7\ufe0f Categoria sugerida: {result.category_name}",
+        "",
+        "Se voce gastar isso:",
+        f"\U0001f4b0 Saldo atual: {format_brl(result.current_account_balance)} -> "
+        f"{format_brl(result.projected_account_balance)}",
+        f"\U0001f4c8 Saldo do mes: {format_brl(result.current_monthly_balance)} -> "
+        f"{format_brl(result.projected_monthly_balance)}",
+        f"\u2705 Livre no plano: {format_brl(result.current_plan_remaining)} -> "
+        f"{format_brl(result.projected_plan_remaining)}",
+    ]
+
+    if result.allocation:
+        allocation = result.allocation
+        prefix = allocation.emoji or "-"
+        lines.extend(
+            [
+                "",
+                f"{prefix} Fatia {allocation.name}:",
+                f"{format_brl(allocation.current_spent)} -> "
+                f"{format_brl(allocation.projected_spent)} / "
+                f"{format_brl(allocation.planned_amount)} "
+                f"({allocation.projected_percentage:.0f}%)",
+            ],
+        )
+
+    if result.budget:
+        budget = result.budget
+        lines.extend(
+            [
+                "",
+                f"\U0001f4ca {budget.category_name} este mes:",
+                f"{format_brl(budget.current_spent)} -> "
+                f"{format_brl(budget.projected_spent)} / "
+                f"{format_brl(budget.limit_value)} "
+                f"({budget.projected_percentage:.0f}%)",
+                progress_bar(budget.projected_percentage),
+            ],
+        )
+
+    if result.alerts:
+        lines.append("")
+        for alert in result.alerts:
+            lines.append(f"\u26a0\ufe0f {alert}")
+
+    lines.extend(
+        [
+            "",
+            f"Nada foi registrado. Para lancar de verdade, envie: "
+            f"{result.description.lower()} {result.amount:.2f}",
+        ],
+    )
+    return "\n".join(lines)
+
+
 def start_message() -> str:
     return (
         "Bem-vindo ao FinTrack.\n\n"
@@ -199,6 +272,7 @@ def start_message() -> str:
         "- mercado 45\n"
         "- recebi 1500\n"
         "- guardei 100 reserva\n"
+        "- /efeito pizza de 42 reais hoje\n"
         "- /saldo\n"
         "- /resumo\n"
         "- /planejamento"
@@ -208,7 +282,8 @@ def start_message() -> str:
 def help_message() -> str:
     return (
         "Comandos: /saldo, /resumo, /reservas, /categorias, /extrato, "
-        "/grafico, /grafico barras, /planejamento.\n\n"
+        "/grafico, /grafico barras, /planejamento, /efeito.\n\n"
         "Voce tambem pode escrever: mercado 45, recebi 1500, "
-        "guardei 100 reserva, definir renda 3000, comprometido 1800."
+        "guardei 100 reserva, definir renda 3000, comprometido 1800, "
+        "/efeito pizza de 42 reais hoje."
     )
