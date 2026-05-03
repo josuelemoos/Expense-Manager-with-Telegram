@@ -34,7 +34,7 @@ def get_transactions(
         Literal["income", "expense", "transfer"] | None,
         Query(alias="type"),
     ] = None,
-    category_id: int | None = None,
+    category_id: Annotated[int | None, Query(gt=0)] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[TransactionRead]:

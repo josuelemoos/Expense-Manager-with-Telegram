@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 
 from app.models import Budget, Category, Transaction
 from app.schemas.budget import BudgetProgress, BudgetRead
+from app.services.atomic import atomic_write
 from app.services.category_service import get_category
 from app.services.exceptions import NotFoundError, ValidationError
 from app.utils.date_helpers import now_in_timezone
@@ -88,8 +89,8 @@ def upsert_budget(
             limit_value=limit_value,
         )
 
-    session.add(budget)
-    session.commit()
+    with atomic_write(session):
+        session.add(budget)
     session.refresh(budget)
     return budget
 

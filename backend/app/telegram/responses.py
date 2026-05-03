@@ -18,7 +18,23 @@ def progress_bar(percentage: Decimal | int | float, width: int = 10) -> str:
 
 
 def format_parse_error(error: ParseError) -> str:
-    return f"{error.message}\n\nSugestao: {error.suggestion}"
+    lines = [error.message]
+    if error.suggestion:
+        lines.extend(["", f"Sugestao: {error.suggestion}"])
+    lines.extend(["", "Voce tambem pode enviar /ajuda para ver exemplos."])
+    return "\n".join(lines)
+
+
+def format_service_error(detail: str) -> str:
+    return "\n".join(
+        [
+            "Nao consegui concluir essa acao.",
+            "",
+            detail,
+            "",
+            "Revise os dados e tente novamente. Para exemplos, envie /ajuda.",
+        ],
+    )
 
 
 def format_transaction_result(result: TransactionResult) -> str:
@@ -84,6 +100,8 @@ def format_monthly_summary(summary: MonthlySummary) -> str:
 
 
 def format_reserves(reserves: list[Reserve]) -> str:
+    if not reserves:
+        return "Voce ainda nao tem reservas ativas cadastradas."
     lines = ["\U0001f3e6 Suas reservas", ""]
     total = Decimal("0.00")
     for reserve in reserves:

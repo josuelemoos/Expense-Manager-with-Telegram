@@ -1,4 +1,6 @@
-from fastapi import APIRouter, status
+from typing import Annotated
+
+from fastapi import APIRouter, Path, status
 
 from app.routers.deps import SessionDep, UserIdDep
 from app.routers.errors import service_error_to_http
@@ -31,7 +33,7 @@ def post_reserve(
 
 @router.post("/{reserve_id}/deposit", response_model=ReserveDepositRead)
 def post_reserve_deposit(
-    reserve_id: int,
+    reserve_id: Annotated[int, Path(gt=0)],
     data: ReserveDepositCreate,
     session: SessionDep,
     user_id: UserIdDep,

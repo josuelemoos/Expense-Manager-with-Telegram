@@ -9,6 +9,7 @@ from app.models import Transaction
 from app.schemas.budget import BudgetProgress
 from app.schemas.transaction import TransactionCreate, TransactionRead, TransactionResult
 from app.services.account_service import get_account_or_default
+from app.services.atomic import atomic_write
 from app.services.budget_service import get_budget_progress
 from app.services.category_service import (
     get_category_or_none,
@@ -58,20 +59,16 @@ def _create_transaction_record(
         source=data.source,
     )
 
-    if data.type == "income":
-        account.current_balance += amount
-    else:
-        account.current_balance -= amount
-
-    try:
+    with atomic_write(session):
+        if data.type == "income":
+            account.current_balance += amount
+        else:
+            account.current_balance -= amount
         session.add(account)
         session.add(transaction)
-        session.commit()
-        session.refresh(transaction)
-        session.refresh(account)
-    except Exception:
-        session.rollback()
-        raise
+
+    session.refresh(transaction)
+    session.refresh(account)
 
     budget_progress = None
     if transaction.type == "expense" and transaction.category_id:

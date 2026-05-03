@@ -32,6 +32,7 @@ from app.telegram.responses import (
     format_plan_update,
     format_reserve_deposit,
     format_reserves,
+    format_service_error,
     format_transaction_result,
     format_transactions,
     help_message,
@@ -40,7 +41,10 @@ from app.telegram.responses import (
 from app.utils.date_helpers import now_in_timezone
 
 
-UNAUTHORIZED_MESSAGE = "Este chat nao esta autorizado para usar o FinTrack."
+UNAUTHORIZED_MESSAGE = (
+    "Este chat nao esta autorizado para usar o FinTrack.\n\n"
+    "Se este e o seu chat, configure DEFAULT_USER_TELEGRAM_CHAT_ID com o id correto."
+)
 logger = logging.getLogger(__name__)
 
 
@@ -283,4 +287,10 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         await handle_parsed_message(update, parsed)
     except ServiceError as error:
-        await _reply_text(update, error.detail)
+        await _reply_text(update, format_service_error(error.detail))
+    except Exception:
+        logger.exception("Erro inesperado ao processar mensagem do Telegram")
+        await _reply_text(
+            update,
+            "Nao consegui processar agora. Tente novamente em instantes.",
+        )

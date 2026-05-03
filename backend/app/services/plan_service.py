@@ -14,6 +14,7 @@ from app.schemas.plan import (
     MonthlyPlanUpsert,
     PlanProgress,
 )
+from app.services.atomic import atomic_write
 from app.services.category_service import get_category
 from app.services.exceptions import NotFoundError, ValidationError
 from app.utils.date_helpers import now_in_timezone
@@ -104,8 +105,8 @@ def upsert_monthly_plan(
             updated_at=now,
         )
 
-    session.add(plan)
-    session.commit()
+    with atomic_write(session):
+        session.add(plan)
     session.refresh(plan)
     return MonthlyPlanRead.model_validate(plan)
 
@@ -211,8 +212,8 @@ def upsert_allocation_rule(
             is_active=data.is_active,
         )
 
-    session.add(rule)
-    session.commit()
+    with atomic_write(session):
+        session.add(rule)
     session.refresh(rule)
     return AllocationRuleRead.model_validate(rule)
 

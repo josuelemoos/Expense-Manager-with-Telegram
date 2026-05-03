@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from app.models import Reserve, Transaction
 from app.schemas.reserve import ReserveCreate, ReserveDepositCreate
 from app.services.account_service import get_account_or_default
+from app.services.atomic import atomic_write
 from app.services.category_service import find_category_by_name
 from app.services.exceptions import NotFoundError, ValidationError
 from app.utils.date_helpers import now_in_timezone
@@ -27,13 +28,9 @@ def create_reserve(session: Session, user_id: int, data: ReserveCreate) -> Reser
         goal_value=data.goal_value,
         description=data.description,
     )
-    try:
+    with atomic_write(session):
         session.add(reserve)
-        session.commit()
-        session.refresh(reserve)
-    except Exception:
-        session.rollback()
-        raise
+    session.refresh(reserve)
     return reserve
 
 
@@ -70,8 +67,6 @@ def deposit_to_reserve(
     if account.current_balance < amount:
         raise ValidationError("Saldo insuficiente para aportar na reserva.")
 
-    reserve.current_value += amount
-    account.current_balance -= amount
     category = find_category_by_name(session, user_id, "Reservas", "expense")
 
     transaction = Transaction(
@@ -86,14 +81,12 @@ def deposit_to_reserve(
         source="manual",
     )
 
-    try:
+    with atomic_write(session):
+        reserve.current_value += amount
+        account.current_balance -= amount
         session.add(account)
         session.add(reserve)
         session.add(transaction)
-        session.commit()
-        session.refresh(reserve)
-        session.refresh(account)
-    except Exception:
-        session.rollback()
-        raise
+    session.refresh(reserve)
+    session.refresh(account)
     return reserve, account.current_balance, progress_percentage(reserve)

@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class BudgetUpsert(BaseModel):
-    category_id: int
+    category_id: int = Field(gt=0)
     month: int = Field(ge=1, le=12)
     year: int = Field(ge=2000)
     limit_value: Decimal = Field(ge=0, max_digits=12, decimal_places=2)

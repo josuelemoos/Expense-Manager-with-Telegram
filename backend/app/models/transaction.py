@@ -1,7 +1,8 @@
-from datetime import date, datetime
+from datetime import date as PyDate
+from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Numeric, String, Text, func, text
+from sqlalchemy import CheckConstraint, Column, Date as SQLDate, DateTime, ForeignKey, Numeric, String, Text, func, text
 from sqlmodel import Field, SQLModel
 
 
@@ -34,9 +35,9 @@ class Transaction(SQLModel, table=True):
     type: str = Field(sa_column=Column(String(15), nullable=False))
     amount: Decimal = Field(sa_column=Column(Numeric(12, 2), nullable=False))
     description: str = Field(sa_column=Column(String(255), nullable=False))
-    date: date | None = Field(
+    date: PyDate | None = Field(
         default=None,
-        sa_column=Column(Date, nullable=False, server_default=text("CURRENT_DATE")),
+        sa_column=Column(SQLDate, nullable=False, server_default=text("CURRENT_DATE")),
     )
     notes: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     source: str = Field(
