@@ -27,6 +27,44 @@ Health check:
 curl http://localhost:8000/health
 ```
 
+## Ngrok automatico
+
+O `docker-compose.yml` tambem sobe um servico `ngrok` apontando para o backend em `backend:8000`.
+Ele usa por padrao o dominio fixo:
+
+```text
+https://obsolete-glare-reckless.ngrok-free.dev
+```
+
+E monta o authtoken ja configurado no seu usuario:
+
+```text
+/home/josuelemoos/.config/ngrok/ngrok.yml
+```
+
+Para trocar dominio ou caminho do config, copie `.env.example` para `.env` na raiz e ajuste:
+
+```bash
+cp .env.example .env
+```
+
+```dotenv
+NGROK_DOMAIN=seu-dominio.ngrok-free.dev
+NGROK_CONFIG=/caminho/para/ngrok.yml
+```
+
+O webhook do Telegram deve continuar apontando para:
+
+```dotenv
+TELEGRAM_WEBHOOK_URL=https://obsolete-glare-reckless.ngrok-free.dev/api/v1/telegram/webhook
+```
+
+Se trocar `NGROK_DOMAIN`, atualize tambem `TELEGRAM_WEBHOOK_URL` em `backend/.env` e registre de novo:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/telegram/setup
+```
+
 Swagger:
 
 ```text

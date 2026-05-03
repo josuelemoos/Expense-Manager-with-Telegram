@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:15
@@ -40,6 +38,21 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    command:
+      - http
+      - --config=/etc/ngrok.yml
+      - --url=${NGROK_DOMAIN:-obsolete-glare-reckless.ngrok-free.dev}
+      - backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "4040:4040"
+    volumes:
+      - ${NGROK_CONFIG:-/home/josuelemoos/.config/ngrok/ngrok.yml}:/etc/ngrok.yml:ro
+    restart: unless-stopped
 
 volumes:
   postgres_data:
